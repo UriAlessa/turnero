@@ -3,120 +3,112 @@
 import { useState, type FormEvent } from "react";
 import { toast } from "sonner";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+
+// 1. Importamos los componentes de shadcn/ui
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 export default function Registro() {
   const [nombre, setNombre] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const router = useRouter();
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
+    setIsLoading(true);
 
-    console.log({
-      nombre,
-      email,
-      passwordLength: password.length,
-    });
-    toast.success("Cuenta creada correctamente");
+    // Simulación de llamada a API (espera 1 segundo)
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
+    // Guardamos en localStorage para simular que el usuario "inició sesión"
+    localStorage.setItem("turnero_user", JSON.stringify({ nombre, email }));
+
+    toast.success("¡Cuenta creada correctamente!");
+    setIsLoading(false);
+
+    // Redirigimos al dashboard (que crearemos después)
+    router.push("/dashboard");
   };
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-50 px-6 py-12">
-      <section className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-        <Link
-          href="/"
-          className="mb-6 inline-flex items-center gap-2 text-sm font-semibold text-slate-600 transition hover:text-indigo-600"
-        >
-          ← Volver al inicio
-        </Link>
-        <div className="mb-8">
-          <p className="text-sm font-semibold text-indigo-600">TURNERO</p>
-          <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-slate-50 px-4 py-12 sm:px-6 lg:px-8">
+      <div className="rounded-2xl border border-slate-200 p-4 w-full max-w-md space-y-8">
+        {/* Encabezado */}
+        <div className="text-center">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-2 font-bold tracking-tight text-slate-950"
+          >
+            <span className="grid size-9 place-items-center rounded-xl bg-indigo-600 text-lg text-white">
+              T
+            </span>
+            Turnero
+          </Link>
+          <h1 className="mt-6 text-3xl font-bold tracking-tight text-slate-950">
             Creá tu cuenta
           </h1>
           <p className="mt-2 text-slate-600">
-            Después vas a poder configurar tu negocio y recibir reservas.
+            Configurá tu negocio y empezá a recibir reservas.
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-5">
-          <div>
-            <label
-              className="mb-2 block text-sm font-medium text-slate-700"
-              htmlFor="nombre"
-            >
-              Nombre completo
-            </label>
-
-            <input
-              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+        {/* Formulario */}
+        <form onSubmit={handleSubmit} className="mt-8 space-y-5">
+          <div className="space-y-2">
+            <Label htmlFor="nombre">Nombre completo</Label>
+            <Input
               id="nombre"
-              name="nombre"
               type="text"
               placeholder="Ej. Juan Pérez"
-              required={true}
+              required
               value={nombre}
-              onChange={(event) => setNombre(event.target.value)}
+              onChange={(e) => setNombre(e.target.value)}
             />
           </div>
 
-          <div>
-            <label
-              className="mb-2 block text-sm font-medium text-slate-700"
-              htmlFor="email"
-            >
-              Correo electrónico
-            </label>
-
-            <input
-              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+          <div className="space-y-2">
+            <Label htmlFor="email">Correo electrónico</Label>
+            <Input
               id="email"
-              name="email"
               type="email"
               placeholder="Ej. juanperez@gmail.com"
-              required={true}
+              required
               value={email}
-              onChange={(event) => setEmail(event.target.value)}
+              onChange={(e) => setEmail(e.target.value)}
             />
           </div>
 
-          <div>
-            <label
-              className="mb-2 block text-sm font-medium text-slate-700"
-              htmlFor="password"
-            >
-              Contraseña
-            </label>
-
-            <input
-              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+          <div className="space-y-2">
+            <Label htmlFor="password">Contraseña</Label>
+            <Input
               id="password"
-              name="password"
               type="password"
-              required={true}
+              required
               value={password}
-              onChange={(event) => setPassword(event.target.value)}
+              onChange={(e) => setPassword(e.target.value)}
             />
           </div>
 
-          <button
-            type="submit"
-            className="w-full rounded-xl bg-indigo-600 py-3 font-semibold text-white transition hover:bg-indigo-700"
-          >
-            Crear cuenta
-          </button>
+          <Button type="submit" className="w-full" disabled={isLoading}>
+            {isLoading ? "Creando cuenta..." : "Crear cuenta"}
+          </Button>
         </form>
 
-        <p className="mt-6 text-center text-sm text-slate-600">
+        {/* Pie de formulario */}
+        <p className="text-center text-sm text-slate-600">
           ¿Ya tenés cuenta?{" "}
-          <a
-            className="font-semibold text-indigo-600 hover:text-indigo-700"
-            href="#"
+          <Link
+            href="/ingresar"
+            className="font-semibold text-indigo-600 hover:text-indigo-700 underline-offset-4 hover:underline"
           >
-            Ingresá
-          </a>
+            Ingresá aquí
+          </Link>
         </p>
-      </section>
-    </main>
+      </div>
+    </div>
   );
 }
