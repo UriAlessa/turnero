@@ -5,7 +5,6 @@ import { toast } from "sonner";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-// 1. Importamos los componentes de shadcn/ui
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,16 +20,13 @@ export default function Registro() {
     event.preventDefault();
     setIsLoading(true);
 
-    // Simulación de llamada a API (espera 1 segundo)
     await new Promise((resolve) => setTimeout(resolve, 1000));
 
-    // Guardamos en localStorage para simular que el usuario "inició sesión"
     localStorage.setItem("turnero_user", JSON.stringify({ nombre, email }));
 
     toast.success("¡Cuenta creada correctamente!");
     setIsLoading(false);
 
-    // Redirigimos al dashboard (que crearemos después)
     router.push("/dashboard");
   };
 

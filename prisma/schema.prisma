@@ -1,0 +1,34 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// 1. Modelo de Negocio (La Barbería, el Consultorio, etc.)
+model Business {
+  id          String    @id @default(uuid())
+  slug        String    @unique // Ej: "barberia-pepita"
+  name        String    // Ej: "Barbería Pepita"
+  description String?   // Descripción opcional
+  ownerEmail  String    // Email del dueño
+  services    Service[] // Relación: Un negocio tiene muchos servicios
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+// 2. Modelo de Servicio (Corte, Barba, Consulta, etc.)
+model Service {
+  id          String   @id @default(uuid())
+  name        String   // Ej: "Corte de Cabello"
+  durationMin Int      // Ej: 45 (minutos)
+  price       Int      // Ej: 5000 (en centavos o moneda local)
+  businessId  String   // Clave foránea: a qué negocio pertenece
+  business    Business @relation(fields: [businessId], references: [id])
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
