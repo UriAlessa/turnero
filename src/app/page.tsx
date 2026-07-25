@@ -33,9 +33,9 @@ export default function Home() {
               Creá tu página de turnos en minutos. Tus clientes eligen un horario y vos mantenés toda tu agenda ordenada.
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-              <a className="rounded-xl bg-indigo-600 px-5 py-3 text-center font-semibold text-white shadow-sm transition hover:bg-indigo-700" href="#empezar">
+              <Link className="rounded-xl bg-indigo-600 px-5 py-3 text-center font-semibold text-white shadow-sm transition hover:bg-indigo-700" href="/registro">
                 Crear mi turnero
-              </a>
+              </Link>
               <a className="rounded-xl border border-slate-300 bg-white px-5 py-3 text-center font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-100" href="#como-funciona">
                 Ver cómo funciona
               </a>
@@ -97,3 +97,4 @@ export default function Home() {
     </div>
   );
 }
+
