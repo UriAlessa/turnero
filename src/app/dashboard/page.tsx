@@ -37,6 +37,9 @@ type Appointment = {
   clientPhone: string;
   startsAt: string;
   status: string;
+  serviceName: string | null;
+  serviceDurationMin: number | null;
+  servicePrice: number | null;
   service: {
     name: string;
     durationMin: number;
@@ -579,8 +582,11 @@ export default function Dashboard() {
                           {appointment.clientName}
                         </h3>
                         <p className="text-sm text-slate-600">
-                          {appointment.service.name} ·{" "}
-                          {appointment.service.durationMin} min
+                          {appointment.serviceName ?? appointment.service.name}{" "}
+                          ·{" "}
+                          {appointment.serviceDurationMin ??
+                            appointment.service.durationMin}{" "}
+                          min
                         </p>
                         <p className="mt-1 text-sm text-slate-500">
                           Tel: {appointment.clientPhone}

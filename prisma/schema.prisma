@@ -84,21 +84,23 @@ model Service {
 }
 
 model Appointment {
-  id               String   @id @default(cuid())
-  clientName       String
-  clientPhone      String
-  confirmationCode String   @unique
-  startsAt         DateTime
-  status           String   @default("pending")
-  serviceId        String
-  service          Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
-  businessId       String
-  business         Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  createdAt        DateTime @default(now())
+  id                 String   @id @default(cuid())
+  clientName         String
+  clientPhone        String
+  confirmationCode   String   @unique
+  serviceName        String?
+  serviceDurationMin Int?
+  servicePrice       Int?
+  startsAt           DateTime
+  status             String   @default("pending")
+  serviceId          String
+  service            Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  businessId         String
+  business           Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  createdAt          DateTime @default(now())
 
   @@unique([businessId, startsAt])
 }
-
 model BusinessHours {
   id         String   @id @default(cuid())
   businessId String

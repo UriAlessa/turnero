@@ -76,9 +76,11 @@ export const POST = async (request: Request) => {
     );
 
     const hasOverlap = appointments.some((appointment) => {
+      const appointmentDuration =
+        appointment.serviceDurationMin ?? appointment.service.durationMin;
+
       const appointmentEndsAt = new Date(
-        appointment.startsAt.getTime() +
-          appointment.service.durationMin * 60 * 1000,
+        appointment.startsAt.getTime() + appointmentDuration * 60 * 1000,
       );
 
       return startsAt < appointmentEndsAt && endsAt > appointment.startsAt;
@@ -142,6 +144,9 @@ export const POST = async (request: Request) => {
         clientName: clientName.trim(),
         clientPhone: clientPhone.trim(),
         confirmationCode: crypto.randomUUID(),
+        serviceName: service.name,
+        serviceDurationMin: service.durationMin,
+        servicePrice: service.price,
         startsAt,
         businessId,
         serviceId,

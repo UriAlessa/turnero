@@ -113,9 +113,12 @@ export const GET = async (request: Request) => {
 
       const hasOverlap = appointments.some((appointment) => {
         const appointmentStart = appointment.startsAt;
+
+        const appointmentDuration =
+          appointment.serviceDurationMin ?? appointment.service.durationMin;
+
         const appointmentEnd = new Date(
-          appointmentStart.getTime() +
-            appointment.service.durationMin * 60 * 1000,
+          appointmentStart.getTime() + appointmentDuration * 60 * 1000,
         );
 
         return (
