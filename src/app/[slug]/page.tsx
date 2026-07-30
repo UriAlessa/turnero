@@ -15,7 +15,14 @@ export default async function PublicBusinessPage({
   const business = await prisma.business.findUnique({
     where: { slug },
     include: {
-      services: true,
+      services: {
+        where: {
+          isActive: true,
+        },
+        orderBy: {
+          createdAt: "asc",
+        },
+      },
       businessHours: {
         orderBy: { dayOfWeek: "asc" },
       },

@@ -1,16 +1,24 @@
 "use client";
 
-import { useState, useEffect, type SyntheticEvent } from "react";
+import { useEffect, useState, type SyntheticEvent } from "react";
+import { format } from "date-fns";
+import { es } from "react-day-picker/locale";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
-import { es } from "react-day-picker/locale";
-import { format } from "date-fns";
-import { toast } from "sonner";
+
 type BookingService = {
   id: string;
   name: string;
   durationMin: number;
   price: number;
+};
+
+type BookingConfirmation = {
+  code: string;
+  serviceName: string;
+  date: string;
+  time: string;
 };
 
 type BookingSectionProps = {
@@ -28,6 +36,9 @@ export function BookingSection({ businessId, services }: BookingSectionProps) {
   const [clientName, setClientName] = useState("");
   const [clientPhone, setClientPhone] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [confirmation, setConfirmation] = useState<BookingConfirmation | null>(
+    null,
+  );
 
   const selectedService = services.find(
     (service) => service.id === selectedServiceId,
@@ -48,7 +59,10 @@ export function BookingSection({ businessId, services }: BookingSectionProps) {
         date: format(selectedDate, "yyyy-MM-dd"),
       });
 
-      const response = await fetch(`/api/availability?${params.toString()}`);
+      const response = await fetch(`/api/availability?${params.toString()}`, {
+        cache: "no-store",
+      });
+
       const data = await response.json();
 
       setSlots(data.slots ?? []);
@@ -91,6 +105,13 @@ export function BookingSection({ businessId, services }: BookingSectionProps) {
         return;
       }
 
+      setConfirmation({
+        code: data.appointment.confirmationCode,
+        serviceName: selectedService.name,
+        date: format(selectedDate, "yyyy-MM-dd"),
+        time: selectedTime,
+      });
+
       toast.success("¡Tu turno fue reservado!");
 
       setSlots((currentSlots) =>
@@ -105,6 +126,71 @@ export function BookingSection({ businessId, services }: BookingSectionProps) {
       setIsSubmitting(false);
     }
   };
+
+  const handleSelectService = (serviceId: string) => {
+    setSelectedServiceId(serviceId);
+    setSelectedTime(null);
+    setSlots([]);
+  };
+
+  const handleSelectDate = (date: Date | undefined) => {
+    setSelectedDate(date);
+    setSelectedTime(null);
+    setSlots([]);
+  };
+
+  const handleNewBooking = () => {
+    setConfirmation(null);
+    setSelectedServiceId(null);
+    setSelectedDate(undefined);
+    setSelectedTime(null);
+    setSlots([]);
+  };
+
+  if (confirmation) {
+    return (
+      <section className="mt-10 rounded-2xl border border-green-200 bg-green-50 p-6 text-center shadow-sm">
+        <p className="text-sm font-semibold text-green-700">
+          RESERVA CONFIRMADA
+        </p>
+
+        <h2 className="mt-2 text-2xl font-bold text-slate-950">
+          ¡Tu turno fue reservado!
+        </h2>
+
+        <div className="mt-6 rounded-xl bg-white p-5 text-left">
+          <p className="text-sm text-slate-500">Servicio</p>
+          <p className="font-semibold text-slate-950">
+            {confirmation.serviceName}
+          </p>
+
+          <p className="mt-4 text-sm text-slate-500">Fecha y horario</p>
+          <p className="font-semibold text-slate-950">
+            {format(new Date(`${confirmation.date}T12:00:00`), "dd/MM/yyyy")} ·{" "}
+            {confirmation.time}
+          </p>
+
+          <p className="mt-4 text-sm text-slate-500">Código de confirmación</p>
+          <p className="mt-1 break-all rounded-lg bg-slate-100 px-3 py-2 font-mono text-sm font-semibold text-indigo-700">
+            {confirmation.code}
+          </p>
+        </div>
+
+        <p className="mt-5 text-sm text-slate-600">
+          Guardá este código por si necesitás consultar tu reserva.
+        </p>
+
+        <Button
+          type="button"
+          variant="outline"
+          className="mt-6"
+          onClick={handleNewBooking}
+        >
+          Reservar otro turno
+        </Button>
+      </section>
+    );
+  }
 
   return (
     <section className="mt-10 space-y-4">
@@ -130,7 +216,7 @@ export function BookingSection({ businessId, services }: BookingSectionProps) {
               </p>
             </div>
 
-            <Button onClick={() => setSelectedServiceId(service.id)}>
+            <Button onClick={() => handleSelectService(service.id)}>
               Reservar
             </Button>
           </div>
@@ -151,10 +237,11 @@ export function BookingSection({ businessId, services }: BookingSectionProps) {
             <Calendar
               mode="single"
               selected={selectedDate}
-              onSelect={setSelectedDate}
+              onSelect={handleSelectDate}
               disabled={{ before: today }}
               locale={es}
             />
+
             {selectedDate && selectedServiceId && (
               <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                 <h3 className="text-lg font-semibold text-slate-950">
@@ -187,6 +274,7 @@ export function BookingSection({ businessId, services }: BookingSectionProps) {
                 )}
               </section>
             )}
+
             {selectedTime && selectedService && selectedDate && (
               <form
                 onSubmit={handleSubmit}

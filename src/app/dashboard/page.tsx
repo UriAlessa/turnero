@@ -8,14 +8,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
 
 type Service = {
   id: string;
   name: string;
   durationMin: number;
   price: number;
+  isActive: boolean;
 };
-
 type Business = {
   id: string;
   slug: string;
@@ -29,6 +31,17 @@ type BusinessHour = {
   startTime: string;
   endTime: string;
 };
+type Appointment = {
+  id: string;
+  clientName: string;
+  clientPhone: string;
+  startsAt: string;
+  status: string;
+  service: {
+    name: string;
+    durationMin: number;
+  };
+};
 
 export default function Dashboard() {
   const { data: session, status } = useSession();
@@ -38,13 +51,23 @@ export default function Dashboard() {
   const [businessHours, setBusinessHours] = useState<BusinessHour[]>([]);
   const [isCreatingBusiness, setIsCreatingBusiness] = useState(false);
   const [isCreatingService, setIsCreatingService] = useState(false);
-
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [businessName, setBusinessName] = useState("");
   const [businessDescription, setBusinessDescription] = useState("");
   const [serviceName, setServiceName] = useState("");
   const [serviceDuration, setServiceDuration] = useState("");
   const [servicePrice, setServicePrice] = useState("");
   const [isSavingHours, setIsSavingHours] = useState(false);
+  const [cancellingAppointmentId, setCancellingAppointmentId] = useState<
+    string | null
+  >(null);
+  const [updatingServiceId, setUpdatingServiceId] = useState<string | null>(
+    null,
+  );
+  const [editingServiceId, setEditingServiceId] = useState<string | null>(null);
+  const [editServiceName, setEditServiceName] = useState("");
+  const [editServiceDuration, setEditServiceDuration] = useState("");
+  const [editServicePrice, setEditServicePrice] = useState("");
 
   const router = useRouter();
 
@@ -74,6 +97,23 @@ export default function Dashboard() {
       setBusinessHours(data.hours);
     } catch (error) {
       console.error("Error al obtener horarios:", error);
+    }
+  };
+
+  const fetchAppointments = async (businessId: string) => {
+    try {
+      const response = await fetch(
+        `/api/appointments?businessId=${businessId}`,
+      );
+
+      if (!response.ok) {
+        throw new Error("No se pudieron obtener los turnos");
+      }
+
+      const data = await response.json();
+      setAppointments(data.appointments);
+    } catch (error) {
+      console.error("Error al obtener turnos:", error);
     }
   };
 
@@ -122,6 +162,7 @@ export default function Dashboard() {
             setBusiness(data.business);
             fetchServices(data.business.id);
             fetchBusinessHours(data.business.id);
+            fetchAppointments(data.business.id);
           }
         }
       } catch (error: unknown) {
@@ -284,6 +325,152 @@ export default function Dashboard() {
     }
   };
 
+  const handleCancelAppointment = async (appointmentId: string) => {
+    const shouldCancel = window.confirm(
+      "¿Seguro que querés cancelar este turno?",
+    );
+
+    if (!shouldCancel) {
+      return;
+    }
+
+    setCancellingAppointmentId(appointmentId);
+
+    try {
+      const response = await fetch(`/api/appointments/${appointmentId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          status: "cancelled",
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error ?? "No se pudo cancelar el turno");
+      }
+
+      setAppointments((currentAppointments) =>
+        currentAppointments.map((appointment) =>
+          appointment.id === appointmentId
+            ? { ...appointment, status: "cancelled" }
+            : appointment,
+        ),
+      );
+
+      toast.success("Turno cancelado correctamente");
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "No se pudo cancelar el turno";
+
+      toast.error(message);
+    } finally {
+      setCancellingAppointmentId(null);
+    }
+  };
+
+  const handleToggleService = async (service: Service) => {
+    setUpdatingServiceId(service.id);
+
+    try {
+      const response = await fetch(`/api/service/${service.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          isActive: !service.isActive,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error ?? "No se pudo actualizar el servicio");
+      }
+
+      setServices((currentServices) =>
+        currentServices.map((currentService) =>
+          currentService.id === service.id
+            ? { ...currentService, isActive: data.service.isActive }
+            : currentService,
+        ),
+      );
+
+      toast.success(data.message);
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "No se pudo actualizar el servicio";
+
+      toast.error(message);
+    } finally {
+      setUpdatingServiceId(null);
+    }
+  };
+
+  const handleStartEditService = (service: Service) => {
+    setEditingServiceId(service.id);
+    setEditServiceName(service.name);
+    setEditServiceDuration(String(service.durationMin));
+    setEditServicePrice(String(service.price));
+  };
+
+  const handleUpdateService = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!editingServiceId) {
+      return;
+    }
+
+    const durationMin = Number(editServiceDuration);
+    const price = Number(editServicePrice);
+
+    setUpdatingServiceId(editingServiceId);
+
+    try {
+      const response = await fetch(`/api/service/${editingServiceId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: editServiceName,
+          durationMin,
+          price,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error ?? "No se pudo editar el servicio");
+      }
+
+      setServices((currentServices) =>
+        currentServices.map((service) =>
+          service.id === editingServiceId ? data.service : service,
+        ),
+      );
+
+      setEditingServiceId(null);
+      toast.success("Servicio actualizado correctamente");
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "No se pudo editar el servicio";
+
+      toast.error(message);
+    } finally {
+      setUpdatingServiceId(null);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-50">
       <header className="border-b border-slate-200 bg-white">
@@ -369,6 +556,71 @@ export default function Dashboard() {
               >
                 turnero.com/{business.slug}
               </a>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <h2 className="text-xl font-semibold text-slate-950">
+                Próximos turnos
+              </h2>
+
+              {appointments.length === 0 ? (
+                <p className="mt-4 text-sm text-slate-500">
+                  Todavía no tenés próximos turnos.
+                </p>
+              ) : (
+                <div className="mt-4 space-y-3">
+                  {appointments.map((appointment) => (
+                    <div
+                      key={appointment.id}
+                      className="flex flex-col gap-3 rounded-xl border border-slate-200 p-4 sm:flex-row sm:items-center sm:justify-between"
+                    >
+                      <div>
+                        <h3 className="font-semibold text-slate-950">
+                          {appointment.clientName}
+                        </h3>
+                        <p className="text-sm text-slate-600">
+                          {appointment.service.name} ·{" "}
+                          {appointment.service.durationMin} min
+                        </p>
+                        <p className="mt-1 text-sm text-slate-500">
+                          Tel: {appointment.clientPhone}
+                        </p>
+                      </div>
+
+                      <div className="text-left sm:text-right">
+                        <p className="font-medium text-indigo-600">
+                          {format(
+                            new Date(appointment.startsAt),
+                            "EEEE d 'de' MMMM · HH:mm",
+                            { locale: es },
+                          )}
+                        </p>
+                        <p className="mt-1 text-sm capitalize text-slate-500">
+                          {appointment.status}
+                        </p>
+                        {appointment.status !== "cancelled" && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="mt-3"
+                            disabled={
+                              cancellingAppointmentId === appointment.id
+                            }
+                            onClick={() =>
+                              handleCancelAppointment(appointment.id)
+                            }
+                          >
+                            {cancellingAppointmentId === appointment.id
+                              ? "Cancelando..."
+                              : "Cancelar turno"}
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -513,15 +765,128 @@ export default function Dashboard() {
                       key={service.id}
                       className="flex items-center justify-between rounded-lg border border-slate-200 p-4"
                     >
-                      <div>
-                        <h3 className="font-semibold text-slate-950">
-                          {service.name}
-                        </h3>
-                        <p className="text-sm text-slate-500">
-                          {service.durationMin} min • $
-                          {service.price.toLocaleString()}
-                        </p>
-                      </div>
+                      {editingServiceId === service.id ? (
+                        <form
+                          onSubmit={handleUpdateService}
+                          className="space-y-4 rounded-lg border border-indigo-200 bg-indigo-50 p-4"
+                        >
+                          <div className="space-y-2">
+                            <Label htmlFor={`edit-name-${service.id}`}>
+                              Nombre
+                            </Label>
+                            <Input
+                              id={`edit-name-${service.id}`}
+                              required
+                              value={editServiceName}
+                              onChange={(event) =>
+                                setEditServiceName(event.target.value)
+                              }
+                            />
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label htmlFor={`edit-duration-${service.id}`}>
+                                Duración (minutos)
+                              </Label>
+                              <Input
+                                id={`edit-duration-${service.id}`}
+                                type="number"
+                                min="1"
+                                required
+                                value={editServiceDuration}
+                                onChange={(event) =>
+                                  setEditServiceDuration(event.target.value)
+                                }
+                              />
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label htmlFor={`edit-price-${service.id}`}>
+                                Precio ($)
+                              </Label>
+                              <Input
+                                id={`edit-price-${service.id}`}
+                                type="number"
+                                min="0"
+                                required
+                                value={editServicePrice}
+                                onChange={(event) =>
+                                  setEditServicePrice(event.target.value)
+                                }
+                              />
+                            </div>
+                          </div>
+
+                          <div className="flex gap-3">
+                            <Button
+                              type="submit"
+                              size="sm"
+                              disabled={updatingServiceId === service.id}
+                            >
+                              {updatingServiceId === service.id
+                                ? "Guardando..."
+                                : "Guardar cambios"}
+                            </Button>
+
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setEditingServiceId(null)}
+                            >
+                              Cancelar
+                            </Button>
+                          </div>
+                        </form>
+                      ) : (
+                        <>
+                          <div>
+                            <h3 className="font-semibold text-slate-950">
+                              {service.name}
+                            </h3>
+                            <p className="text-sm text-slate-500">
+                              {service.durationMin} min • $
+                              {service.price.toLocaleString()}
+                            </p>
+                          </div>
+
+                          <div className="flex items-center gap-3">
+                            <span
+                              className={
+                                service.isActive
+                                  ? "rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-700"
+                                  : "rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600"
+                              }
+                            >
+                              {service.isActive ? "Activo" : "Inactivo"}
+                            </span>
+
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleStartEditService(service)}
+                            >
+                              Editar
+                            </Button>
+
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              disabled={updatingServiceId === service.id}
+                              onClick={() => handleToggleService(service)}
+                            >
+                              {updatingServiceId === service.id
+                                ? "Guardando..."
+                                : service.isActive
+                                  ? "Desactivar"
+                                  : "Activar"}
+                            </Button>
+                          </div>
+                        </>
+                      )}
                     </div>
                   ))}
                 </div>

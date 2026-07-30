@@ -75,6 +75,7 @@ model Service {
   name         String
   durationMin  Int
   price        Int
+  isActive     Boolean       @default(true)
   businessId   String
   business     Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
   createdAt    DateTime      @default(now())

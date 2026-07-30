@@ -1,5 +1,6 @@
 import { Prisma, PrismaClient } from "@prisma/client";
 import { NextResponse } from "next/server";
+import { auth } from "@/lib/auth";
 
 const prisma = new PrismaClient();
 
@@ -83,6 +84,52 @@ export const POST = async (request: Request) => {
       return startsAt < appointmentEndsAt && endsAt > appointment.startsAt;
     });
 
+    const selectedDate = new Date(`${date}T12:00:00Z`);
+    const dayOfWeek = selectedDate.getUTCDay();
+
+    const businessHours = await prisma.businessHours.findUnique({
+      where: {
+        businessId_dayOfWeek: {
+          businessId,
+          dayOfWeek,
+        },
+      },
+    });
+
+    if (!businessHours) {
+      return NextResponse.json(
+        { error: "El negocio no atiende ese día" },
+        { status: 400 },
+      );
+    }
+
+    const [hours, minutes] = time.split(":").map(Number);
+    const requestedStartMinutes = hours * 60 + minutes;
+
+    const [openingHours, openingMinutes] = businessHours.startTime
+      .split(":")
+      .map(Number);
+
+    const [closingHours, closingMinutes] = businessHours.endTime
+      .split(":")
+      .map(Number);
+
+    const openingMinutesTotal = openingHours * 60 + openingMinutes;
+    const closingMinutesTotal = closingHours * 60 + closingMinutes;
+    const requestedEndMinutes = requestedStartMinutes + service.durationMin;
+
+    const isWithinBusinessHours =
+      requestedStartMinutes >= openingMinutesTotal &&
+      requestedEndMinutes <= closingMinutesTotal &&
+      (requestedStartMinutes - openingMinutesTotal) % service.durationMin === 0;
+
+    if (!isWithinBusinessHours) {
+      return NextResponse.json(
+        { error: "El horario seleccionado no está disponible" },
+        { status: 400 },
+      );
+    }
+
     if (hasOverlap) {
       return NextResponse.json(
         { error: "Ese horario ya no está disponible" },
@@ -120,6 +167,70 @@ export const POST = async (request: Request) => {
     }
 
     console.error("Error al crear turno:", error);
+
+    return NextResponse.json(
+      { error: "Error interno del servidor" },
+      { status: 500 },
+    );
+  }
+};
+
+export const GET = async (request: Request) => {
+  const session = await auth();
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  }
+
+  const { searchParams } = new URL(request.url);
+  const businessId = searchParams.get("businessId");
+
+  if (!businessId) {
+    return NextResponse.json({ error: "Falta el businessId" }, { status: 400 });
+  }
+
+  const business = await prisma.business.findFirst({
+    where: {
+      id: businessId,
+      ownerId: userId,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!business) {
+    return NextResponse.json(
+      { error: "Negocio no encontrado" },
+      { status: 404 },
+    );
+  }
+
+  try {
+    const appointments = await prisma.appointment.findMany({
+      where: {
+        businessId,
+        startsAt: {
+          gte: new Date(),
+        },
+      },
+      include: {
+        service: {
+          select: {
+            name: true,
+            durationMin: true,
+          },
+        },
+      },
+      orderBy: {
+        startsAt: "asc",
+      },
+    });
+
+    return NextResponse.json({ appointments });
+  } catch (error) {
+    console.error("Error al obtener turnos:", error);
 
     return NextResponse.json(
       { error: "Error interno del servidor" },
