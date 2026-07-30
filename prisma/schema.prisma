@@ -7,28 +7,104 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// 1. Modelo de Negocio (La Barbería, el Consultorio, etc.)
-model Business {
-  id          String    @id @default(uuid())
-  slug        String    @unique // Ej: "barberia-pepita"
-  name        String    // Ej: "Barbería Pepita"
-  description String?   // Descripción opcional
-  ownerEmail  String    // Email del dueño
-  services    Service[] // Relación: Un negocio tiene muchos servicios
-  
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+model User {
+  id            String     @id @default(cuid())
+  name          String?
+  email         String?    @unique
+  emailVerified DateTime?
+  image         String?
+  password      String? // 
+  accounts      Account[]
+  sessions      Session[]
+  businesses    Business[]
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
 }
 
-// 2. Modelo de Servicio (Corte, Barba, Consulta, etc.)
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Business {
+  id            String          @id @default(cuid())
+  slug          String          @unique
+  name          String
+  description   String?
+  ownerId       String
+  owner         User            @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  services      Service[]
+  appointments  Appointment[]
+  businessHours BusinessHours[]
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+}
+
 model Service {
-  id          String   @id @default(uuid())
-  name        String   // Ej: "Corte de Cabello"
-  durationMin Int      // Ej: 45 (minutos)
-  price       Int      // Ej: 5000 (en centavos o moneda local)
-  businessId  String   // Clave foránea: a qué negocio pertenece
-  business    Business @relation(fields: [businessId], references: [id])
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id           String        @id @default(cuid())
+  name         String
+  durationMin  Int
+  price        Int
+  businessId   String
+  business     Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  appointments Appointment[]
+}
+
+model Appointment {
+  id               String   @id @default(cuid())
+  clientName       String
+  clientPhone      String
+  confirmationCode String   @unique
+  startsAt         DateTime
+  status           String   @default("pending")
+  serviceId        String
+  service          Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  businessId       String
+  business         Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  createdAt        DateTime @default(now())
+
+  @@unique([businessId, startsAt])
+}
+
+model BusinessHours {
+  id         String   @id @default(cuid())
+  businessId String
+  dayOfWeek  Int
+  startTime  String
+  endTime    String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, dayOfWeek])
 }

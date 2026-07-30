@@ -3,8 +3,8 @@
 import { useState, type FormEvent } from "react";
 import { toast } from "sonner";
 import Link from "next/link";
+import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
-
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,19 +19,39 @@ export default function Ingresar() {
     event.preventDefault();
     setIsLoading(true);
 
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    try {
+      const result = await signIn("credentials", {
+        email,
+        password,
+        redirect: false,
+      });
 
-    localStorage.setItem("turnero_user", JSON.stringify({ email }));
+      // NextAuth devuelve un objeto con 'error' si falla, en lugar de lanzar una excepción
+      if (result?.error) {
+        // Traducimos los códigos de error de NextAuth a español
+        if (result.error === "CredentialsSignin") {
+          throw new Error("Email o contraseña incorrectos");
+        }
+        if (result.error === "Configuration") {
+          throw new Error("Error de configuración.");
+        }
+        throw new Error(result.error);
+      }
 
-    toast.success("¡Ingresaste a tu cuenta!");
-    setIsLoading(false);
-
-    router.push("/dashboard");
+      toast.success("¡Bienvenido de nuevo!");
+      router.push("/dashboard");
+      router.refresh();
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Credenciales incorrectas";
+      toast.error(errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
   };
-
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-slate-50 px-4 py-12 sm:px-6 lg:px-8">
-      <div className="rounded-2xl border border-slate-200 p-4 w-full max-w-md space-y-8">
+      <div className="w-full max-w-md space-y-8">
         <div className="text-center">
           <Link
             href="/"
@@ -46,7 +66,7 @@ export default function Ingresar() {
             Ingresá a tu cuenta
           </h1>
           <p className="mt-2 text-slate-600">
-            Continuá gestionando tus turnos.
+            Administrá tus turnos y configurá tu negocio.
           </p>
         </div>
 
@@ -75,7 +95,7 @@ export default function Ingresar() {
           </div>
 
           <Button type="submit" className="w-full" disabled={isLoading}>
-            {isLoading ? "Ingresando a tu cuenta..." : "Ingresar"}
+            {isLoading ? "Ingresando..." : "Ingresar"}
           </Button>
         </form>
 

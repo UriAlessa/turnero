@@ -1,24 +1,52 @@
 import { NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
+import { auth } from "@/lib/auth";
 
 const prisma = new PrismaClient();
 
-// Esta función se ejecuta cuando el frontend hace un POST a /api/business
+// GET: Buscar negocio por ownerId
+export const GET = async () => {
+  const session = await auth();
+  const userId = session?.user?.id;
 
+  if (!userId) {
+    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  }
+
+  try {
+    const business = await prisma.business.findFirst({
+      where: { ownerId: userId },
+    });
+
+    return NextResponse.json({ business }, { status: 200 });
+  } catch (error: unknown) {
+    const errorMessage =
+      error instanceof Error ? error.message : "Error interno del servidor";
+    console.error("Error al buscar negocio:", error);
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
+  }
+};
+
+// POST: Crear un nuevo negocio
 export const POST = async (request: Request) => {
+  const session = await auth();
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  }
+
   try {
     const body = await request.json();
-    const { name, description, slug, ownerEmail } = body;
+    const { name, description, slug } = body;
 
-    // Validar si faltan datos
-    if (!name || !slug || !ownerEmail) {
+    if (!name || !slug) {
       return NextResponse.json(
         { error: "Faltan campos obligatorios" },
         { status: 400 },
       );
     }
 
-    // Buscar un negocio existente con ese nombre
     const existingBusiness = await prisma.business.findUnique({
       where: { slug },
     });
@@ -26,7 +54,7 @@ export const POST = async (request: Request) => {
     if (existingBusiness) {
       return NextResponse.json(
         { error: "Ya existe un negocio con ese nombre. Probá con otro." },
-        { status: 400 },
+        { status: 409 },
       );
     }
 
@@ -35,7 +63,7 @@ export const POST = async (request: Request) => {
         name,
         description,
         slug,
-        ownerEmail,
+        ownerId: userId,
       },
     });
 
@@ -49,7 +77,7 @@ export const POST = async (request: Request) => {
   } catch (error: unknown) {
     const errorMessage =
       error instanceof Error ? error.message : "Error interno del servidor";
-    console.error("Error:", error);
+    console.error("Error al crear negocio:", error);
     return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 };

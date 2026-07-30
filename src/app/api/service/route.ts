@@ -1,11 +1,19 @@
 import { NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
+import { auth } from "@/lib/auth";
 
 const prisma = new PrismaClient();
 
 // Esta función se ejecuta cuando el frontend hace un POST a /api/service
 export const GET = async (request: Request) => {
   try {
+    const session = await auth();
+    const userId = session?.user?.id;
+
+    if (!userId) {
+      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+    }
+
     const { searchParams } = new URL(request.url);
     const businessId = searchParams.get("businessId");
 
@@ -13,6 +21,21 @@ export const GET = async (request: Request) => {
       return NextResponse.json(
         { error: "Falta el businessId" },
         { status: 400 },
+      );
+    }
+
+    const business = await prisma.business.findFirst({
+      where: {
+        id: businessId,
+        ownerId: userId,
+      },
+      select: { id: true },
+    });
+
+    if (!business) {
+      return NextResponse.json(
+        { error: "Negocio no encontrado" },
+        { status: 404 },
       );
     }
 
@@ -34,6 +57,13 @@ export const GET = async (request: Request) => {
 // POST: Crear un nuevo servicio
 
 export const POST = async (request: Request) => {
+  const session = await auth();
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  }
+
   try {
     const body = await request.json();
 
@@ -43,6 +73,21 @@ export const POST = async (request: Request) => {
       return NextResponse.json(
         { error: "Faltan campos obligatorios" },
         { status: 400 },
+      );
+    }
+
+    const business = await prisma.business.findFirst({
+      where: {
+        id: businessId,
+        ownerId: userId,
+      },
+      select: { id: true },
+    });
+
+    if (!business) {
+      return NextResponse.json(
+        { error: "Negocio no encontrado" },
+        { status: 404 },
       );
     }
 

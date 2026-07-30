@@ -4,7 +4,6 @@ import { useState, type FormEvent } from "react";
 import { toast } from "sonner";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,20 +19,37 @@ export default function Registro() {
     event.preventDefault();
     setIsLoading(true);
 
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    try {
+      const response = await fetch("/api/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: nombre,
+          email,
+          password,
+        }),
+      });
 
-    localStorage.setItem("turnero_user", JSON.stringify({ nombre, email }));
+      const data = await response.json();
 
-    toast.success("¡Cuenta creada correctamente!");
-    setIsLoading(false);
+      if (!response.ok) {
+        throw new Error(data.error || "Error al crear cuenta");
+      }
 
-    router.push("/dashboard");
+      toast.success("¡Cuenta creada! Ahora podés iniciar sesión");
+      router.push("/ingresar");
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Error al crear cuenta";
+      toast.error(errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-slate-50 px-4 py-12 sm:px-6 lg:px-8">
-      <div className="rounded-2xl border border-slate-200 p-4 w-full max-w-md space-y-8">
-        {/* Encabezado */}
+      <div className="w-full max-w-md space-y-8">
         <div className="text-center">
           <Link
             href="/"
@@ -48,11 +64,10 @@ export default function Registro() {
             Creá tu cuenta
           </h1>
           <p className="mt-2 text-slate-600">
-            Configurá tu negocio y empezá a recibir reservas.
+            Después vas a poder configurar tu negocio y recibir reservas.
           </p>
         </div>
 
-        {/* Formulario */}
         <form onSubmit={handleSubmit} className="mt-8 space-y-5">
           <div className="space-y-2">
             <Label htmlFor="nombre">Nombre completo</Label>
@@ -94,14 +109,13 @@ export default function Registro() {
           </Button>
         </form>
 
-        {/* Pie de formulario */}
         <p className="text-center text-sm text-slate-600">
           ¿Ya tenés cuenta?{" "}
           <Link
             href="/ingresar"
             className="font-semibold text-indigo-600 hover:text-indigo-700 underline-offset-4 hover:underline"
           >
-            Ingresá aquí
+            Ingresá
           </Link>
         </p>
       </div>

@@ -20,12 +20,12 @@ export default function Home() {
           >
             Cómo funciona
           </a>
-          <a
+          <Link
             className="rounded-lg px-3 py-2 text-slate-700 hover:bg-slate-200"
-            href="#ingresar"
+            href="/ingresar"
           >
             Ingresar
-          </a>
+          </Link>
         </nav>
       </header>
 

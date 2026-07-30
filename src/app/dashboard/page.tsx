@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
+import { useSession, signOut } from "next-auth/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -19,72 +20,129 @@ type Business = {
   id: string;
   slug: string;
   name: string;
+  ownerId: string;
+};
+
+type BusinessHour = {
+  id?: string;
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
 };
 
 export default function Dashboard() {
-  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const { data: session, status } = useSession();
+
   const [business, setBusiness] = useState<Business | null>(null);
   const [services, setServices] = useState<Service[]>([]);
+  const [businessHours, setBusinessHours] = useState<BusinessHour[]>([]);
   const [isCreatingBusiness, setIsCreatingBusiness] = useState(false);
   const [isCreatingService, setIsCreatingService] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
 
   const [businessName, setBusinessName] = useState("");
   const [businessDescription, setBusinessDescription] = useState("");
-
   const [serviceName, setServiceName] = useState("");
   const [serviceDuration, setServiceDuration] = useState("");
   const [servicePrice, setServicePrice] = useState("");
+  const [isSavingHours, setIsSavingHours] = useState(false);
 
   const router = useRouter();
 
-  // 1. Verificar usuario y cargar datos al inicio
-  useEffect(() => {
-    const initializeDashboard = async () => {
-      const storedUser = localStorage.getItem("turnero_user");
+  const fetchServices = async (businessId: string) => {
+    try {
+      const response = await fetch(`/api/service?businessId=${businessId}`);
+      if (response.ok) {
+        const data = await response.json();
+        setServices(data.services);
+      }
+    } catch (error: unknown) {
+      console.error("Error al obtener servicios:", error);
+    }
+  };
 
-      if (!storedUser) {
-        router.push("/ingresar");
-        return;
+  const fetchBusinessHours = async (businessId: string) => {
+    try {
+      const response = await fetch(
+        `/api/business-hours?businessId=${businessId}`,
+      );
+
+      if (!response.ok) {
+        throw new Error("No se pudieron obtener los horarios");
       }
 
-      const parsedUser = JSON.parse(storedUser);
-      setUserEmail(parsedUser.email);
+      const data = await response.json();
+      setBusinessHours(data.hours);
+    } catch (error) {
+      console.error("Error al obtener horarios:", error);
+    }
+  };
 
-      // Buscar negocio del usuario
+  const toggleBusinessDay = (dayOfWeek: number) => {
+    setBusinessHours((currentHours) => {
+      const existingHour = currentHours.find(
+        (hour) => hour.dayOfWeek === dayOfWeek,
+      );
+
+      if (existingHour) {
+        return currentHours.filter((hour) => hour.dayOfWeek !== dayOfWeek);
+      }
+
+      return [
+        ...currentHours,
+        {
+          dayOfWeek,
+          startTime: "09:00",
+          endTime: "18:00",
+        },
+      ];
+    });
+  };
+
+  const updateBusinessHour = (
+    dayOfWeek: number,
+    field: "startTime" | "endTime",
+    value: string,
+  ) => {
+    setBusinessHours((currentHours) =>
+      currentHours.map((hour) =>
+        hour.dayOfWeek === dayOfWeek ? { ...hour, [field]: value } : hour,
+      ),
+    );
+  };
+
+  useEffect(() => {
+    const fetchBusiness = async () => {
+      if (!session?.user?.id) return;
+
       try {
-        const response = await fetch(
-          `/api/business?ownerEmail=${parsedUser.email}`,
-        );
+        const response = await fetch(`/api/business`);
         if (response.ok) {
           const data = await response.json();
           if (data.business) {
             setBusiness(data.business);
-
-            // Si tiene negocio, cargar servicios
-            const servicesResponse = await fetch(
-              `/api/service?businessId=${data.business.id}`,
-            );
-            if (servicesResponse.ok) {
-              const servicesData = await servicesResponse.json();
-              setServices(servicesData.services);
-            }
+            fetchServices(data.business.id);
+            fetchBusinessHours(data.business.id);
           }
         }
       } catch (error: unknown) {
-        console.error("Error al inicializar dashboard:", error);
-      } finally {
-        setIsLoading(false);
+        console.error("Error al buscar negocio:", error);
       }
     };
 
-    initializeDashboard();
-  }, [router]);
+    if (status === "authenticated") {
+      fetchBusiness();
+    }
+  }, [session, status]);
 
-  // 2. Función para crear el negocio
+  useEffect(() => {
+    if (status === "unauthenticated") {
+      router.push("/ingresar");
+    }
+  }, [status, router]);
+
   const handleCreateBusiness = async (event: FormEvent) => {
     event.preventDefault();
-    if (!userEmail) return;
+    if (!session?.user?.id) return;
 
     setIsCreatingBusiness(true);
 
@@ -101,18 +159,16 @@ export default function Dashboard() {
           name: businessName,
           description: businessDescription,
           slug: slug,
-          ownerEmail: userEmail,
         }),
       });
 
+      const data = await response.json();
+
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Error al crear el negocio");
+        throw new Error(data.error || "Error al crear el negocio");
       }
 
-      const data = await response.json();
       setBusiness(data.business);
-
       toast.success("¡Negocio creado con éxito!");
     } catch (error: unknown) {
       const errorMessage =
@@ -126,7 +182,6 @@ export default function Dashboard() {
     }
   };
 
-  // 3. Función para crear un servicio
   const handleCreateService = async (event: FormEvent) => {
     event.preventDefault();
     if (!business) return;
@@ -145,25 +200,17 @@ export default function Dashboard() {
         }),
       });
 
+      const data = await response.json();
+
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Error al crear el servicio");
+        throw new Error(data.error || "Error al crear el servicio");
       }
 
       toast.success("¡Servicio agregado!");
-
       setServiceName("");
       setServiceDuration("");
       setServicePrice("");
-
-      // Recargar servicios
-      const servicesResponse = await fetch(
-        `/api/service?businessId=${business.id}`,
-      );
-      if (servicesResponse.ok) {
-        const servicesData = await servicesResponse.json();
-        setServices(servicesData.services);
-      }
+      fetchServices(business.id);
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error
@@ -176,13 +223,11 @@ export default function Dashboard() {
     }
   };
 
-  // 4. Cerrar sesión
   const handleLogout = () => {
-    localStorage.removeItem("turnero_user");
-    router.push("/");
+    signOut({ callbackUrl: "/" });
   };
 
-  if (isLoading) {
+  if (status === "loading") {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <p className="text-slate-600">Cargando tu panel...</p>
@@ -190,9 +235,54 @@ export default function Dashboard() {
     );
   }
 
-  if (!userEmail) {
+  if (!session?.user) {
     return null;
   }
+
+  const WEEK_DAYS = [
+    { value: 1, label: "Lunes" },
+    { value: 2, label: "Martes" },
+    { value: 3, label: "Miércoles" },
+    { value: 4, label: "Jueves" },
+    { value: 5, label: "Viernes" },
+    { value: 6, label: "Sábado" },
+    { value: 0, label: "Domingo" },
+  ];
+
+  const handleSaveBusinessHours = async () => {
+    if (!business) return;
+
+    setIsSavingHours(true);
+
+    try {
+      const response = await fetch("/api/business-hours", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          businessId: business.id,
+          hours: businessHours,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "No se pudieron guardar los horarios");
+      }
+
+      setBusinessHours(data.hours);
+      toast.success("Horarios guardados correctamente");
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "No se pudieron guardar los horarios";
+
+      toast.error(message);
+    } finally {
+      setIsSavingHours(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -219,7 +309,9 @@ export default function Dashboard() {
         </h1>
         <p className="mt-2 text-slate-600">
           Sesión iniciada como:{" "}
-          <span className="font-semibold text-indigo-600">{userEmail}</span>
+          <span className="font-semibold text-indigo-600">
+            {session.user.email}
+          </span>
         </p>
 
         {!business ? (
@@ -277,6 +369,81 @@ export default function Dashboard() {
               >
                 turnero.com/{business.slug}
               </a>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <h2 className="text-xl font-semibold text-slate-950">
+                Horarios de atención
+              </h2>
+              <p className="mt-1 text-sm text-slate-600">
+                Elegí los días y horarios en los que recibís reservas.
+              </p>
+
+              <div className="mt-6 space-y-3">
+                {WEEK_DAYS.map((day) => {
+                  const hour = businessHours.find(
+                    (item) => item.dayOfWeek === day.value,
+                  );
+
+                  return (
+                    <div
+                      key={day.value}
+                      className="flex flex-col gap-3 rounded-xl border border-slate-200 p-4 sm:flex-row sm:items-center sm:justify-between"
+                    >
+                      <label className="flex items-center gap-3 font-medium text-slate-800">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(hour)}
+                          onChange={() => toggleBusinessDay(day.value)}
+                          className="size-4 accent-indigo-600"
+                        />
+                        {day.label}
+                      </label>
+
+                      {hour ? (
+                        <div className="flex items-center gap-2">
+                          <Input
+                            type="time"
+                            value={hour.startTime}
+                            onChange={(event) =>
+                              updateBusinessHour(
+                                day.value,
+                                "startTime",
+                                event.target.value,
+                              )
+                            }
+                            className="w-28"
+                          />
+                          <span className="text-sm text-slate-500">a</span>
+                          <Input
+                            type="time"
+                            value={hour.endTime}
+                            onChange={(event) =>
+                              updateBusinessHour(
+                                day.value,
+                                "endTime",
+                                event.target.value,
+                              )
+                            }
+                            className="w-28"
+                          />
+                        </div>
+                      ) : (
+                        <span className="text-sm text-slate-500">Cerrado</span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              <Button
+                type="button"
+                className="mt-6 w-full"
+                onClick={handleSaveBusinessHours}
+                disabled={isSavingHours}
+              >
+                {isSavingHours ? "Guardando..." : "Guardar horarios"}
+              </Button>
             </div>
 
             <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
