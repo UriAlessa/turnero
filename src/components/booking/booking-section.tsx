@@ -3,7 +3,6 @@
 import { useEffect, useState, type SyntheticEvent } from "react";
 import { format } from "date-fns";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
 import {
   BookingConfirmation,
   type BookingConfirmationData,
@@ -14,6 +13,8 @@ import {
 } from "@/components/booking/booking-service-list";
 import { BookingReservationForm } from "@/components/booking/booking-reservation-form";
 import { BookingAvailability } from "@/components/booking/booking-availability";
+import type { BookingStep } from "@/types/booking";
+
 type BookingSectionProps = {
   businessId: string;
   services: BookingService[];
@@ -29,8 +30,11 @@ export function BookingSection({ businessId, services }: BookingSectionProps) {
   const [clientName, setClientName] = useState("");
   const [clientPhone, setClientPhone] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoadingSlots, setIsLoadingSlots] = useState(false);
+  const [slotsError, setSlotsError] = useState<string | null>(null);
   const [confirmation, setConfirmation] =
     useState<BookingConfirmationData | null>(null);
+  const [currentStep, setCurrentStep] = useState<BookingStep>("service");
 
   const selectedService = services.find(
     (service) => service.id === selectedServiceId,
@@ -44,23 +48,49 @@ export function BookingSection({ businessId, services }: BookingSectionProps) {
       return;
     }
 
+    const controller = new AbortController();
+
     const fetchSlots = async () => {
-      const params = new URLSearchParams({
-        businessId,
-        serviceId: selectedServiceId,
-        date: format(selectedDate, "yyyy-MM-dd"),
-      });
+      try {
+        const params = new URLSearchParams({
+          businessId,
+          serviceId: selectedServiceId,
+          date: format(selectedDate, "yyyy-MM-dd"),
+        });
 
-      const response = await fetch(`/api/availability?${params.toString()}`, {
-        cache: "no-store",
-      });
+        const response = await fetch(`/api/availability?${params.toString()}`, {
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        const data = await response.json();
 
-      const data = await response.json();
+        if (!response.ok) {
+          throw new Error(
+            data.error ?? "No se pudo consultar la disponibilidad",
+          );
+        }
 
-      setSlots(data.slots ?? []);
+        setSlots(data.slots ?? []);
+      } catch (error) {
+        if (error instanceof Error && error.name === "AbortError") {
+          return;
+        }
+
+        setSlotsError(
+          error instanceof Error
+            ? error.message
+            : "No se pudo consultar la disponibilidad",
+        );
+      } finally {
+        if (!controller.signal.aborted) {
+          setIsLoadingSlots(false);
+        }
+      }
     };
 
     fetchSlots();
+
+    return () => controller.abort();
   }, [businessId, selectedServiceId, selectedDate]);
 
   const handleSubmit = async (
@@ -121,22 +151,52 @@ export function BookingSection({ businessId, services }: BookingSectionProps) {
 
   const handleSelectService = (serviceId: string) => {
     setSelectedServiceId(serviceId);
+    setSelectedDate(undefined);
     setSelectedTime(null);
     setSlots([]);
+    setSlotsError(null);
+    setCurrentStep("availability");
+    setIsLoadingSlots(false);
   };
 
   const handleSelectDate = (date: Date | undefined) => {
     setSelectedDate(date);
     setSelectedTime(null);
     setSlots([]);
+    setSlotsError(null);
+    setCurrentStep("availability");
+    setIsLoadingSlots(Boolean(date && selectedServiceId));
   };
 
   const handleNewBooking = () => {
+    setCurrentStep("service");
     setConfirmation(null);
     setSelectedServiceId(null);
     setSelectedDate(undefined);
     setSelectedTime(null);
     setSlots([]);
+    setSlotsError(null);
+    setIsLoadingSlots(false);
+  };
+
+  const handleSelectTime = (time: string) => {
+    setSelectedTime(time);
+    setCurrentStep("reservation");
+  };
+
+  const handleBackStep = () => {
+    if (currentStep === "availability") {
+      setCurrentStep("service");
+      setSelectedServiceId(null);
+      setSelectedTime(null);
+      setSlots([]);
+      setSlotsError(null);
+      setIsLoadingSlots(false);
+      setSelectedDate(undefined);
+    } else if (currentStep === "reservation") {
+      setCurrentStep("availability");
+      setSelectedTime(null);
+    }
   };
 
   if (confirmation) {
@@ -150,66 +210,45 @@ export function BookingSection({ businessId, services }: BookingSectionProps) {
 
   return (
     <section className="mt-10 space-y-4">
-      <BookingServiceList
-        services={services}
-        onSelectService={handleSelectService}
-      />
-
-      {services.length === 0 ? (
-        <p className="text-slate-500">
-          Este negocio aún no tiene servicios configurados.
-        </p>
-      ) : (
-        services.map((service) => (
-          <div
-            key={service.id}
-            className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-indigo-200"
-          >
-            <div>
-              <h3 className="font-semibold text-slate-950">{service.name}</h3>
-              <p className="text-sm text-slate-500">
-                {service.durationMin} minutos • $
-                {service.price.toLocaleString()}
-              </p>
-            </div>
-
-            <Button onClick={() => handleSelectService(service.id)}>
-              Reservar
-            </Button>
-          </div>
-        ))
+      {currentStep === "service" && (
+        <BookingServiceList
+          services={services}
+          selectedServiceId={selectedServiceId}
+          onSelectService={handleSelectService}
+        />
       )}
 
-      {selectedService && (
-        <>
-          <p className="rounded-xl bg-indigo-50 p-4 text-sm text-indigo-700">
-            Seleccionaste: <strong>{selectedService.name}</strong>
-          </p>
+      {currentStep === "availability" && (
+        <BookingAvailability
+          selectedDate={selectedDate}
+          selectedTime={selectedTime}
+          slots={slots}
+          isLoadingSlots={isLoadingSlots}
+          slotsError={slotsError}
+          today={today}
+          onSelectDate={handleSelectDate}
+          onSelectTime={handleSelectTime}
+          onBack={handleBackStep}
+        />
+      )}
 
-          <BookingAvailability
+      {currentStep === "reservation" &&
+        selectedService &&
+        selectedTime &&
+        selectedDate && (
+          <BookingReservationForm
+            serviceName={selectedService.name}
             selectedDate={selectedDate}
             selectedTime={selectedTime}
-            slots={slots}
-            today={today}
-            onSelectDate={handleSelectDate}
-            onSelectTime={setSelectedTime}
+            clientName={clientName}
+            clientPhone={clientPhone}
+            isSubmitting={isSubmitting}
+            onClientNameChange={setClientName}
+            onClientPhoneChange={setClientPhone}
+            onSubmit={handleSubmit}
+            onBack={handleBackStep}
           />
-
-          {selectedTime && selectedDate && (
-            <BookingReservationForm
-              serviceName={selectedService.name}
-              selectedDate={selectedDate}
-              selectedTime={selectedTime}
-              clientName={clientName}
-              clientPhone={clientPhone}
-              isSubmitting={isSubmitting}
-              onClientNameChange={setClientName}
-              onClientPhoneChange={setClientPhone}
-              onSubmit={handleSubmit}
-            />
-          )}
-        </>
-      )}
+        )}
     </section>
   );
 }
