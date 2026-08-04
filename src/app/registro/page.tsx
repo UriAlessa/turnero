@@ -76,6 +76,8 @@ export default function Registro() {
               type="text"
               placeholder="Ej. Juan Pérez"
               required
+              minLength={2}
+              maxLength={100}
               value={nombre}
               onChange={(e) => setNombre(e.target.value)}
             />
@@ -88,6 +90,7 @@ export default function Registro() {
               type="email"
               placeholder="Ej. juanperez@gmail.com"
               required
+              maxLength={254}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
@@ -99,6 +102,8 @@ export default function Registro() {
               id="password"
               type="password"
               required
+              minLength={8}
+              maxLength={72}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />

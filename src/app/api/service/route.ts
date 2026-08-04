@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
-
-const prisma = new PrismaClient();
 
 // Esta función se ejecuta cuando el frontend hace un POST a /api/service
 export const GET = async (request: Request) => {

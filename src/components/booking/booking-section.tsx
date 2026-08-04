@@ -181,12 +181,6 @@ export function BookingSection({ businessId, services }: BookingSectionProps) {
       )}
 
       {selectedService && (
-        <p className="rounded-xl bg-indigo-50 p-4 text-sm text-indigo-700">
-          Seleccionaste: <strong>{selectedService.name}</strong>
-        </p>
-      )}
-
-      {selectedService && (
         <>
           <p className="rounded-xl bg-indigo-50 p-4 text-sm text-indigo-700">
             Seleccionaste: <strong>{selectedService.name}</strong>

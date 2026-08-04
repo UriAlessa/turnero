@@ -1,8 +1,14 @@
-import { Prisma, PrismaClient } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import {
+  intervalsOverlap,
+  isWithinBusinessHours,
+  parseAppointmentDate,
+} from "@/lib/booking-rules";
 
-const prisma = new PrismaClient();
+const MAX_TRANSACTION_ATTEMPTS = 3;
 
 export const POST = async (request: Request) => {
   try {
@@ -28,6 +34,7 @@ export const POST = async (request: Request) => {
       where: {
         id: serviceId,
         businessId,
+        isActive: true,
       },
     });
 
@@ -38,11 +45,18 @@ export const POST = async (request: Request) => {
       );
     }
 
-    const startsAt = new Date(`${date}T${time}:00-03:00`);
+    const startsAt = parseAppointmentDate(date, time);
 
-    if (Number.isNaN(startsAt.getTime())) {
+    if (!startsAt) {
       return NextResponse.json(
         { error: "La fecha u horario no son válidos" },
+        { status: 400 },
+      );
+    }
+
+    if (startsAt <= new Date()) {
+      return NextResponse.json(
+        { error: "El turno debe ser para una fecha futura" },
         { status: 400 },
       );
     }
@@ -50,41 +64,6 @@ export const POST = async (request: Request) => {
     const dayStart = new Date(`${date}T00:00:00-03:00`);
     const dayEnd = new Date(dayStart);
     dayEnd.setUTCDate(dayEnd.getUTCDate() + 1);
-
-    const appointments = await prisma.appointment.findMany({
-      where: {
-        businessId,
-        startsAt: {
-          gte: dayStart,
-          lt: dayEnd,
-        },
-        status: {
-          not: "cancelled",
-        },
-      },
-      include: {
-        service: {
-          select: {
-            durationMin: true,
-          },
-        },
-      },
-    });
-
-    const endsAt = new Date(
-      startsAt.getTime() + service.durationMin * 60 * 1000,
-    );
-
-    const hasOverlap = appointments.some((appointment) => {
-      const appointmentDuration =
-        appointment.serviceDurationMin ?? appointment.service.durationMin;
-
-      const appointmentEndsAt = new Date(
-        appointment.startsAt.getTime() + appointmentDuration * 60 * 1000,
-      );
-
-      return startsAt < appointmentEndsAt && endsAt > appointment.startsAt;
-    });
 
     const selectedDate = new Date(`${date}T12:00:00Z`);
     const dayOfWeek = selectedDate.getUTCDay();
@@ -105,53 +84,106 @@ export const POST = async (request: Request) => {
       );
     }
 
-    const [hours, minutes] = time.split(":").map(Number);
-    const requestedStartMinutes = hours * 60 + minutes;
-
-    const [openingHours, openingMinutes] = businessHours.startTime
-      .split(":")
-      .map(Number);
-
-    const [closingHours, closingMinutes] = businessHours.endTime
-      .split(":")
-      .map(Number);
-
-    const openingMinutesTotal = openingHours * 60 + openingMinutes;
-    const closingMinutesTotal = closingHours * 60 + closingMinutes;
-    const requestedEndMinutes = requestedStartMinutes + service.durationMin;
-
-    const isWithinBusinessHours =
-      requestedStartMinutes >= openingMinutesTotal &&
-      requestedEndMinutes <= closingMinutesTotal &&
-      (requestedStartMinutes - openingMinutesTotal) % service.durationMin === 0;
-
-    if (!isWithinBusinessHours) {
+    if (
+      !isWithinBusinessHours(
+        time,
+        service.durationMin,
+        businessHours.startTime,
+        businessHours.endTime,
+      )
+    ) {
       return NextResponse.json(
         { error: "El horario seleccionado no está disponible" },
         { status: 400 },
       );
     }
 
-    if (hasOverlap) {
+    const normalizedClientName = clientName.trim();
+    const normalizedClientPhone = clientPhone.trim();
+
+    if (
+      normalizedClientName.length < 2 ||
+      normalizedClientName.length > 100 ||
+      normalizedClientPhone.length < 6 ||
+      normalizedClientPhone.length > 30
+    ) {
+      return NextResponse.json(
+        { error: "El nombre o teléfono no son válidos" },
+        { status: 400 },
+      );
+    }
+
+    let appointment;
+
+    for (let attempt = 1; attempt <= MAX_TRANSACTION_ATTEMPTS; attempt += 1) {
+      try {
+        appointment = await prisma.$transaction(
+          async (tx) => {
+            const appointments = await tx.appointment.findMany({
+              where: {
+                businessId,
+                startsAt: { gte: dayStart, lt: dayEnd },
+                status: { not: "cancelled" },
+              },
+              include: { service: { select: { durationMin: true } } },
+            });
+
+            const hasOverlap = appointments.some((existingAppointment) =>
+              intervalsOverlap(
+                startsAt,
+                service.durationMin,
+                existingAppointment.startsAt,
+                existingAppointment.serviceDurationMin ??
+                  existingAppointment.service.durationMin,
+              ),
+            );
+
+            if (hasOverlap) {
+              throw new AppointmentConflictError();
+            }
+
+            return tx.appointment.create({
+              data: {
+                clientName: normalizedClientName,
+                clientPhone: normalizedClientPhone,
+                confirmationCode: crypto.randomUUID(),
+                serviceName: service.name,
+                serviceDurationMin: service.durationMin,
+                servicePrice: service.price,
+                startsAt,
+                businessId,
+                serviceId,
+              },
+            });
+          },
+          { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+        );
+        break;
+      } catch (error) {
+        if (error instanceof AppointmentConflictError) {
+          return NextResponse.json(
+            { error: "Ese horario ya no está disponible" },
+            { status: 409 },
+          );
+        }
+
+        const shouldRetry =
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === "P2034" &&
+          attempt < MAX_TRANSACTION_ATTEMPTS;
+
+        if (!shouldRetry) {
+          throw error;
+        }
+      }
+    }
+
+    if (!appointment) {
       return NextResponse.json(
         { error: "Ese horario ya no está disponible" },
         { status: 409 },
       );
     }
-
-    const appointment = await prisma.appointment.create({
-      data: {
-        clientName: clientName.trim(),
-        clientPhone: clientPhone.trim(),
-        confirmationCode: crypto.randomUUID(),
-        serviceName: service.name,
-        serviceDurationMin: service.durationMin,
-        servicePrice: service.price,
-        startsAt,
-        businessId,
-        serviceId,
-      },
-    });
 
     return NextResponse.json(
       {
@@ -179,6 +211,8 @@ export const POST = async (request: Request) => {
     );
   }
 };
+
+class AppointmentConflictError extends Error {}
 
 export const GET = async (request: Request) => {
   const session = await auth();

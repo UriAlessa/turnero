@@ -1,23 +1,48 @@
 import { NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { prisma } from "@/lib/prisma";
 
-const prisma = new PrismaClient();
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export const POST = async (request: Request) => {
   try {
     const body = await request.json();
-    const { name, email, password } = body;
+    const { name, email, password } = body as Record<string, unknown>;
 
-    if (!email || !password) {
+    if (
+      typeof email !== "string" ||
+      typeof password !== "string" ||
+      (name !== undefined && typeof name !== "string")
+    ) {
       return NextResponse.json(
-        { error: "Email y contraseña son obligatorios" },
+        { error: "Los datos enviados no son válidos" },
+        { status: 400 },
+      );
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const normalizedName = typeof name === "string" ? name.trim() : "";
+
+    if (
+      !EMAIL_PATTERN.test(normalizedEmail) ||
+      normalizedEmail.length > 254 ||
+      password.length < 8 ||
+      password.length > 72 ||
+      normalizedName.length < 2 ||
+      normalizedName.length > 100
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Ingresá un nombre y email válidos, y una contraseña de 8 a 72 caracteres",
+        },
         { status: 400 },
       );
     }
 
     const existingUser = await prisma.user.findUnique({
-      where: { email },
+      where: { email: normalizedEmail },
     });
 
     if (existingUser) {
@@ -31,8 +56,8 @@ export const POST = async (request: Request) => {
 
     const user = await prisma.user.create({
       data: {
-        email,
-        name,
+        email: normalizedEmail,
+        name: normalizedName,
         password: hashedPassword,
       },
     });
@@ -45,9 +70,21 @@ export const POST = async (request: Request) => {
       { status: 201 },
     );
   } catch (error: unknown) {
-    const errorMessage =
-      error instanceof Error ? error.message : "Error interno del servidor";
     console.error("Error al registrar usuario:", error);
-    return NextResponse.json({ error: errorMessage }, { status: 500 });
+
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      return NextResponse.json(
+        { error: "Ya existe un usuario con ese email" },
+        { status: 409 },
+      );
+    }
+
+    return NextResponse.json(
+      { error: "Error interno del servidor" },
+      { status: 500 },
+    );
   }
 };

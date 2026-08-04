@@ -1,16 +1,8 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@auth/prisma-adapter";
-import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
-
-const prisma = new PrismaClient();
-
-// Debug: Verificar que el secreto se está leyendo
-console.log(
-  "🔑 AUTH_SECRET longitud:",
-  process.env.AUTH_SECRET?.length || "NO DEFINIDO",
-);
+import { prisma } from "@/lib/prisma";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   adapter: PrismaAdapter(prisma),
@@ -32,7 +24,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
         // 2. Buscar usuario
         const user = await prisma.user.findUnique({
-          where: { email: creds.email },
+          where: { email: creds.email.trim().toLowerCase() },
         });
 
         // 3. Si no existe o no tiene contraseña, devolvemos null

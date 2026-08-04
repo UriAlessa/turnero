@@ -1,9 +1,7 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
 import { BookingSection } from "@/components/booking/booking-section";
-
-const prisma = new PrismaClient();
 
 export default async function PublicBusinessPage({
   params,

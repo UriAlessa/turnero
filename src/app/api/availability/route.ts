@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import { prisma } from "@/lib/prisma";
+import {
+  intervalsOverlap,
+  parseAppointmentDate,
+  TURNERO_TIME_ZONE_OFFSET,
+} from "@/lib/booking-rules";
 
 function timeToMinutes(time: string) {
   const [hours, minutes] = time.split(":").map(Number);
@@ -35,6 +38,7 @@ export const GET = async (request: Request) => {
       where: {
         id: serviceId,
         businessId,
+        isActive: true,
       },
     });
 
@@ -47,9 +51,9 @@ export const GET = async (request: Request) => {
 
     const serviceDuration = service.durationMin;
 
-    const selectedDate = new Date(`${date}T12:00:00Z`);
+    const selectedDate = parseAppointmentDate(date, "12:00");
 
-    if (Number.isNaN(selectedDate.getTime())) {
+    if (!selectedDate) {
       return NextResponse.json(
         { error: "La fecha no es válida" },
         { status: 400 },
@@ -71,7 +75,9 @@ export const GET = async (request: Request) => {
       return NextResponse.json({ slots: [] });
     }
 
-    const dayStart = new Date(`${date}T00:00:00-03:00`);
+    const dayStart = new Date(
+      `${date}T00:00:00${TURNERO_TIME_ZONE_OFFSET}`,
+    );
     const dayEnd = new Date(dayStart);
     dayEnd.setUTCDate(dayEnd.getUTCDate() + 1);
 
@@ -106,23 +112,20 @@ export const GET = async (request: Request) => {
     ) {
       const slot = minutesToTime(slotStart);
 
-      const candidateStart = new Date(`${date}T${slot}:00-03:00`);
-      const candidateEnd = new Date(
-        candidateStart.getTime() + service.durationMin * 60 * 1000,
-      );
+      const candidateStart = parseAppointmentDate(date, slot);
+
+      if (!candidateStart || candidateStart <= new Date()) {
+        continue;
+      }
 
       const hasOverlap = appointments.some((appointment) => {
-        const appointmentStart = appointment.startsAt;
-
         const appointmentDuration =
           appointment.serviceDurationMin ?? appointment.service.durationMin;
-
-        const appointmentEnd = new Date(
-          appointmentStart.getTime() + appointmentDuration * 60 * 1000,
-        );
-
-        return (
-          candidateStart < appointmentEnd && candidateEnd > appointmentStart
+        return intervalsOverlap(
+          candidateStart,
+          service.durationMin,
+          appointment.startsAt,
+          appointmentDuration,
         );
       });
 
