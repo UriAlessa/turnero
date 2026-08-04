@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { AuthShell } from "@/components/auth/auth-shell";
 
 export default function Ingresar() {
   const [email, setEmail] = useState("");
@@ -50,26 +51,12 @@ export default function Ingresar() {
     }
   };
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-slate-50 px-4 py-12 sm:px-6 lg:px-8">
-      <div className="w-full max-w-md space-y-8">
-        <div className="text-center">
-          <Link
-            href="/"
-            className="inline-flex items-center gap-2 font-bold tracking-tight text-slate-950"
-          >
-            <span className="grid size-9 place-items-center rounded-xl bg-indigo-600 text-lg text-white">
-              T
-            </span>
-            Turnero
-          </Link>
-          <h1 className="mt-6 text-3xl font-bold tracking-tight text-slate-950">
-            Ingresá a tu cuenta
-          </h1>
-          <p className="mt-2 text-slate-600">
-            Administrá tus turnos y configurá tu negocio.
-          </p>
-        </div>
-
+    <AuthShell
+      eyebrow="Bienvenido de nuevo"
+      title="Ingresá a tu cuenta"
+      description="Administrá tus turnos, servicios y horarios desde tu panel."
+      footer={<p>¿No tenés cuenta? <Link href="/registro" className="font-semibold text-indigo-600 underline-offset-4 hover:text-indigo-700 hover:underline">Creá una gratis</Link></p>}
+    >
         <form onSubmit={handleSubmit} className="mt-8 space-y-5">
           <div className="space-y-2">
             <Label htmlFor="email">Correo electrónico</Label>
@@ -78,8 +65,10 @@ export default function Ingresar() {
               type="email"
               placeholder="Ej. juanperez@gmail.com"
               required
+              autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              className="h-12 rounded-xl bg-slate-50 px-4 focus-visible:border-indigo-500 focus-visible:ring-indigo-100"
             />
           </div>
 
@@ -89,26 +78,18 @@ export default function Ingresar() {
               id="password"
               type="password"
               required
+              autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              placeholder="Tu contraseña"
+              className="h-12 rounded-xl bg-slate-50 px-4 focus-visible:border-indigo-500 focus-visible:ring-indigo-100"
             />
           </div>
 
-          <Button type="submit" className="w-full" disabled={isLoading}>
+          <Button type="submit" size="lg" className="w-full bg-indigo-600 shadow-lg shadow-indigo-100 hover:bg-indigo-700" disabled={isLoading}>
             {isLoading ? "Ingresando..." : "Ingresar"}
           </Button>
         </form>
-
-        <p className="text-center text-sm text-slate-600">
-          ¿No tenés cuenta?{" "}
-          <Link
-            href="/registro"
-            className="font-semibold text-indigo-600 hover:text-indigo-700 underline-offset-4 hover:underline"
-          >
-            Registrate aquí
-          </Link>
-        </p>
-      </div>
-    </div>
+    </AuthShell>
   );
 }

@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { AuthShell } from "@/components/auth/auth-shell";
 
 export default function Registro() {
   const [nombre, setNombre] = useState("");
@@ -48,26 +49,12 @@ export default function Registro() {
   };
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-slate-50 px-4 py-12 sm:px-6 lg:px-8">
-      <div className="w-full max-w-md space-y-8">
-        <div className="text-center">
-          <Link
-            href="/"
-            className="inline-flex items-center gap-2 font-bold tracking-tight text-slate-950"
-          >
-            <span className="grid size-9 place-items-center rounded-xl bg-indigo-600 text-lg text-white">
-              T
-            </span>
-            Turnero
-          </Link>
-          <h1 className="mt-6 text-3xl font-bold tracking-tight text-slate-950">
-            Creá tu cuenta
-          </h1>
-          <p className="mt-2 text-slate-600">
-            Después vas a poder configurar tu negocio y recibir reservas.
-          </p>
-        </div>
-
+    <AuthShell
+      eyebrow="Empezá hoy"
+      title="Creá tu cuenta"
+      description="Configurá tu negocio y empezá a recibir reservas en pocos minutos."
+      footer={<p>¿Ya tenés cuenta? <Link href="/ingresar" className="font-semibold text-indigo-600 underline-offset-4 hover:text-indigo-700 hover:underline">Ingresá a tu panel</Link></p>}
+    >
         <form onSubmit={handleSubmit} className="mt-8 space-y-5">
           <div className="space-y-2">
             <Label htmlFor="nombre">Nombre completo</Label>
@@ -78,8 +65,10 @@ export default function Registro() {
               required
               minLength={2}
               maxLength={100}
+              autoComplete="name"
               value={nombre}
               onChange={(e) => setNombre(e.target.value)}
+              className="h-12 rounded-xl bg-slate-50 px-4 focus-visible:border-indigo-500 focus-visible:ring-indigo-100"
             />
           </div>
 
@@ -91,8 +80,10 @@ export default function Registro() {
               placeholder="Ej. juanperez@gmail.com"
               required
               maxLength={254}
+              autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              className="h-12 rounded-xl bg-slate-50 px-4 focus-visible:border-indigo-500 focus-visible:ring-indigo-100"
             />
           </div>
 
@@ -104,26 +95,19 @@ export default function Registro() {
               required
               minLength={8}
               maxLength={72}
+              autoComplete="new-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              placeholder="Mínimo 8 caracteres"
+              className="h-12 rounded-xl bg-slate-50 px-4 focus-visible:border-indigo-500 focus-visible:ring-indigo-100"
             />
+            <p className="text-xs text-slate-500">Usá entre 8 y 72 caracteres.</p>
           </div>
 
-          <Button type="submit" className="w-full" disabled={isLoading}>
+          <Button type="submit" size="lg" className="w-full bg-indigo-600 shadow-lg shadow-indigo-100 hover:bg-indigo-700" disabled={isLoading}>
             {isLoading ? "Creando cuenta..." : "Crear cuenta"}
           </Button>
         </form>
-
-        <p className="text-center text-sm text-slate-600">
-          ¿Ya tenés cuenta?{" "}
-          <Link
-            href="/ingresar"
-            className="font-semibold text-indigo-600 hover:text-indigo-700 underline-offset-4 hover:underline"
-          >
-            Ingresá
-          </Link>
-        </p>
-      </div>
-    </div>
+    </AuthShell>
   );
 }
