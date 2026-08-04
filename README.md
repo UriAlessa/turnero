@@ -82,30 +82,6 @@ Cada reserva almacena la información principal del servicio al momento de su cr
 
 Además, existe una restricción para evitar que un negocio tenga más de una reserva en el mismo horario.
 
-
-
-Estructura principal
-
-turnero/
-├── prisma/
-│   ├── migrations/
-│   └── schema.prisma
-├── public/
-├── scripts/
-├── src/
-│   ├── app/
-│   │   ├── [slug]/
-│   │   ├── api/
-│   │   ├── dashboard/
-│   │   ├── ingresar/
-│   │   └── registro/
-│   ├── components/
-│   ├── hooks/
-│   ├── lib/
-│   └── types/
-├── package.json
-└── README.md
-
 Estado del proyecto
 
 Actualmente se encuentran implementadas las bases principales del producto:
