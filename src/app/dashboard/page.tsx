@@ -294,7 +294,7 @@ function OverviewGrid({ businessSlug, appointments, todayCount, nextAppointment,
       </section>
 
       <div className="md:col-span-2 xl:col-span-8">
-        <AppointmentsList appointments={appointments.slice(0, 5)} cancellingAppointmentId={cancellingAppointmentId} onCancelAppointment={onCancelAppointment} />
+        <AppointmentsList appointments={appointments.slice(0, 5)} cancellingAppointmentId={cancellingAppointmentId} onCancelAppointment={onCancelAppointment} compact />
       </div>
     </div>
   );
